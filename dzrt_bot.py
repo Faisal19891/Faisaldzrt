@@ -1,80 +1,58 @@
+import os
 import requests
 from bs4 import BeautifulSoup
-from telegram import Update
-from telegram.ext import CommandHandler, MessageHandler, filters, ApplicationBuilder, ContextTypes
-import logging
+from telegram import Update, Bot
+from telegram.ext import ApplicationBuilder, CommandHandler
 import nest_asyncio
 import asyncio
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
-# تطبيق nest_asyncio لتجنب مشكلة تداخل حلقات الأحداث
 nest_asyncio.apply()
 
-# التوكن الخاص بالبوت الذي حصلت عليه من BotFather
-TOKEN = '7169459362:AAEGNBBl65d4q21nqxaFLbCTCYbXcVM-uAs'
+# تخزين توكن البوت
+TOKEN = os.getenv('YOUR_BOT_TOKEN')
 
-# إعداد سجل التتبع لتسهيل عملية التصحيح
-logging.basicConfig(format='%(asctime)s - %(name)s - %(levellevelname)s - %(message)s', level=logging.INFO)
-logger = logging.getLogger(__name__)
+URL = "https://www.dzrt.com/ar/our-products.html"
+INTERVAL = 60  # check every 60 seconds
 
-# تخزين الحالة السابقة للمنتجات
-previous_availability = {}
+bot = Bot(token=TOKEN)
 
-# دالة لفحص توفر السلع على صفحة dzrt.com
-async def check_products(context: ContextTypes.DEFAULT_TYPE):
-    global previous_availability
-    url = 'https://www.dzrt.com/ar/our-products.html'
-    headers = {'User-Agent': 'Mozilla/5.0'}
-    response = requests.get(url, headers=headers)
-    soup = BeautifulSoup(response.content, 'html.parser')
+async def start(update: Update, context):
+    await update.message.reply_text("Bot started!")
+    print("Bot started!")
+
+async def check_products(context, chat_id):
+    response = requests.get(URL)
+    soup = BeautifulSoup(response.content, "html.parser")
+    products = soup.find_all("div", class_="product-item-info")
     
-    # العثور على جميع المنتجات في الصفحة
-    products = soup.find_all('li', {'class': 'product-item'})
-    
-    results = []
-    new_availability = {}
+    message = ""
     for product in products:
-        product_name = product.find('a', {'class': 'product-item-link'}).get_text(strip=True)
-        product_image = product.find('img', {'class': 'product-image-photo'})['src']
-        availability = product.find('div', {'class': 'stock'}).get_text(strip=True)
-        
-        new_availability[product_name] = availability
-        
-        # التحقق من التغير في حالة التوفر
-        if product_name not in previous_availability or previous_availability[product_name] != availability:
-            results.append(f"Product: {product_name}\nAvailability: {availability}\nImage: {product_image}")
+        title = product.find("a", class_="product-item-link").text.strip()
+        availability = "Available" if product.find("div", class_="stock available") else "Not Available"
+        image_tag = product.find("img", class_="product-image-photo")
+        image_url = image_tag['src'] if image_tag and 'src' in image_tag.attrs else "No Image Available"
+
+        message += f"Product: {title}\nAvailability: {availability}\nImage: {image_url}\n\n"
     
-    # تحديث الحالة السابقة
-    previous_availability = new_availability
-    
-    if results:
-        results_text = "\n\n".join(results)
-        await context.bot.send_message(chat_id=context.job.chat_id, text=results_text)
+    if message:
+        await bot.send_message(chat_id=chat_id, text=message)
+    print("Checked products and sent message")
 
-# دالة لإرسال إشعار عند توفر منتج جديد
-async def notify_new_products(context: ContextTypes.DEFAULT_TYPE):
-    await check_products(context)
-
-# دالة بدء البوت
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text('Hello! I will now check the product availability every minute.')
-
-    # إضافة الوظيفة إلى JobQueue للتحقق من التوفر كل دقيقة
-    context.job_queue.run_repeating(notify_new_products, interval=60, first=0, chat_id=update.message.chat_id)
-
-# دالة للرد على الرسائل
-async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text('Send me a product link from dzrt.com to check availability automatically every minute.')
-
-# دالة إعداد البوت
 async def main():
     application = ApplicationBuilder().token(TOKEN).build()
-    
-    # إضافة Handlers للأوامر والرسائل
-    application.add_handler(CommandHandler("start", start))
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-    
-    # بدء البوت
+
+    start_handler = CommandHandler('start', start)
+    application.add_handler(start_handler)
+
+    job_queue = AsyncIOScheduler()
+    job_queue.add_job(check_products, 'interval', seconds=INTERVAL, args=[application, update.message.chat_id])
+    job_queue.start()
+
+    print("Scheduler started")
+
     await application.run_polling()
 
 if __name__ == '__main__':
+    print("Starting bot")
     asyncio.run(main())
