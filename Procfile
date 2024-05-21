@@ -1,1 +1,1 @@
-worker: python dzrt_bot.py
+web: python dzrt_bot.py
