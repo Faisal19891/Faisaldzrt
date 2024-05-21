@@ -10,7 +10,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 nest_asyncio.apply()
 
 # تخزين توكن البوت
-TOKEN = os.getenv('YOUR_BOT_TOKEN')
+TOKEN = "7169459362:AAEGNBBl65d4q21nqxaFLbCTCYbXcVM-uAs"
 
 URL = "https://www.dzrt.com/ar/our-products.html"
 INTERVAL = 60  # check every 60 seconds
@@ -21,7 +21,7 @@ async def start(update: Update, context):
     await update.message.reply_text("Bot started!")
     print("Bot started!")
 
-async def check_products(context, chat_id):
+async def check_products(context):
     response = requests.get(URL)
     soup = BeautifulSoup(response.content, "html.parser")
     products = soup.find_all("div", class_="product-item-info")
@@ -36,7 +36,8 @@ async def check_products(context, chat_id):
         message += f"Product: {title}\nAvailability: {availability}\nImage: {image_url}\n\n"
     
     if message:
-        await bot.send_message(chat_id=chat_id, text=message)
+        # إرسال الرسالة إلى أي دردشة مرسلة منها
+        await bot.send_message(chat_id=update.message.chat_id, text=message)
     print("Checked products and sent message")
 
 async def main():
@@ -46,7 +47,7 @@ async def main():
     application.add_handler(start_handler)
 
     job_queue = AsyncIOScheduler()
-    job_queue.add_job(check_products, 'interval', seconds=INTERVAL, args=[application, update.message.chat_id])
+    job_queue.add_job(check_products, 'interval', seconds=INTERVAL)
     job_queue.start()
 
     print("Scheduler started")
