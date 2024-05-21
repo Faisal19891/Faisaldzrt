@@ -10,7 +10,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 nest_asyncio.apply()
 
 # تخزين توكن البوت
-TOKEN = "7169459362:AAEGNBBl65d4q21nqxaFLbCTCYbXcVM-uAs"
+TOKEN = "7169459362:AAFZXUoe_QEK9kyw53g01XqOr1UbmoFjBwo"
 
 URL = "https://www.dzrt.com/ar/our-products.html"
 INTERVAL = 60  # check every 60 seconds
@@ -36,8 +36,10 @@ async def check_products(context):
         message += f"Product: {title}\nAvailability: {availability}\nImage: {image_url}\n\n"
     
     if message:
-        # إرسال الرسالة إلى أي دردشة مرسلة منها
-        await bot.send_message(chat_id=update.message.chat_id, text=message)
+        # إرسال الرسالة إلى المعرّفات المحددة
+        chat_ids = [383184072]  # قم بتغييرها وفقًا لاحتياجاتك
+        for chat_id in chat_ids:
+            await bot.send_message(chat_id=chat_id, text=message)
     print("Checked products and sent message")
 
 async def main():
